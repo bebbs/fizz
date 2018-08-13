@@ -6,17 +6,16 @@ import (
 	"strings"
 
 	"github.com/gobuffalo/fizz"
-	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
 )
 
 type mysqlTableInfo struct {
-	Field   string      `db:"Field"`
-	Type    string      `db:"Type"`
-	Null    string      `db:"Null"`
-	Key     string      `db:"Key"`
-	Default interface{} `db:"Default"`
-	Extra   string      `db:"Extra"`
+	Field   string
+	Type    string
+	Null    string
+	Key     string
+	Default interface{}
+	Extra   string
 }
 
 func (ti mysqlTableInfo) ToColumn() fizz.Column {
@@ -65,22 +64,23 @@ func (p *mysqlSchema) Version() (string, error) {
 
 func (p *mysqlSchema) Build() error {
 	var err error
-	db, err := sqlx.Open("mysql", p.URL)
+	db, err := sql.Open("mysql", p.URL)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
 
-	res, err := db.Queryx(fmt.Sprintf("select TABLE_NAME as name from information_schema.TABLES where TABLE_SCHEMA = '%s'", p.Name))
+	res, err := db.Query(fmt.Sprintf("select TABLE_NAME as name from information_schema.TABLES where TABLE_SCHEMA = '%s'", p.Name))
 	if err != nil {
 		return err
 	}
+	defer res.Close()
 	for res.Next() {
 		table := &fizz.Table{
 			Columns: []fizz.Column{},
 			Indexes: []fizz.Index{},
 		}
-		err = res.StructScan(table)
+		err = res.Scan(&table.Name)
 		if err != nil {
 			return err
 		}
@@ -92,17 +92,17 @@ func (p *mysqlSchema) Build() error {
 	return nil
 }
 
-func (p *mysqlSchema) buildTableData(table *fizz.Table, db *sqlx.DB) error {
-	prag := fmt.Sprintf("describe %s", table.Name)
+func (p *mysqlSchema) buildTableData(table *fizz.Table, db *sql.DB) error {
+	prag := fmt.Sprintf("SELECT `COLUMN_NAME` AS `Field`, `COLUMN_TYPE` AS `Type`, `IS_NULLABLE` AS `Null`, `COLUMN_KEY` AS `Key`, `COLUMN_DEFAULT` AS `Default`, `EXTRA` AS `Extra` FROM information_schema.columns WHERE table_name='%s';", table.Name)
 
-	res, err := db.Queryx(prag)
+	res, err := db.Query(prag)
 	if err != nil {
 		return nil
 	}
 
 	for res.Next() {
 		ti := mysqlTableInfo{}
-		err = res.StructScan(&ti)
+		err = res.Scan(&ti.Field, &ti.Type, &ti.Null, &ti.Key, &ti.Default, &ti.Extra)
 		if err != nil {
 			return err
 		}
