@@ -53,13 +53,13 @@ type sqliteSchema struct {
 
 func (p *sqliteSchema) Build() error {
 	var err error
-	p.db, err = sqlx.Open("sqlite3", p.URL)
+	db, err := sqlx.Open("sqlite3", p.URL)
 	if err != nil {
 		return err
 	}
-	defer p.db.Close()
+	defer db.Close()
 
-	res, err := p.db.Queryx("SELECT name FROM sqlite_master WHERE type='table';")
+	res, err := db.Queryx("SELECT name FROM sqlite_master WHERE type='table';")
 	if err != nil {
 		return err
 	}
@@ -73,7 +73,7 @@ func (p *sqliteSchema) Build() error {
 			return err
 		}
 		if table.Name != "sqlite_sequence" {
-			err = p.buildTableData(table)
+			err = p.buildTableData(table, db)
 			if err != nil {
 				return err
 			}
@@ -83,10 +83,10 @@ func (p *sqliteSchema) Build() error {
 	return nil
 }
 
-func (p *sqliteSchema) buildTableData(table *fizz.Table) error {
+func (p *sqliteSchema) buildTableData(table *fizz.Table, db *sqlx.DB) error {
 	prag := fmt.Sprintf("PRAGMA table_info(%s)", table.Name)
 
-	res, err := p.db.Queryx(prag)
+	res, err := db.Queryx(prag)
 	if err != nil {
 		return nil
 	}
@@ -99,7 +99,7 @@ func (p *sqliteSchema) buildTableData(table *fizz.Table) error {
 		}
 		table.Columns = append(table.Columns, ti.ToColumn())
 	}
-	err = p.buildTableIndexes(table)
+	err = p.buildTableIndexes(table, db)
 	if err != nil {
 		return err
 	}
@@ -107,9 +107,9 @@ func (p *sqliteSchema) buildTableData(table *fizz.Table) error {
 	return nil
 }
 
-func (p *sqliteSchema) buildTableIndexes(t *fizz.Table) error {
+func (p *sqliteSchema) buildTableIndexes(t *fizz.Table, db *sqlx.DB) error {
 	prag := fmt.Sprintf("PRAGMA index_list(%s)", t.Name)
-	res, err := p.db.Queryx(prag)
+	res, err := db.Queryx(prag)
 	if err != nil {
 		return err
 	}
@@ -128,7 +128,7 @@ func (p *sqliteSchema) buildTableIndexes(t *fizz.Table) error {
 		}
 
 		prag = fmt.Sprintf("PRAGMA index_info(%s)", i.Name)
-		iires, err := p.db.Queryx(prag)
+		iires, err := db.Queryx(prag)
 		if err != nil {
 			return err
 		}

@@ -47,13 +47,13 @@ type cockroachSchema struct {
 
 func (p *cockroachSchema) Build() error {
 	var err error
-	p.db, err = sqlx.Open("postgres", p.URL)
+	db, err := sqlx.Open("postgres", p.URL)
 	if err != nil {
 		return err
 	}
-	defer p.db.Close()
+	defer db.Close()
 
-	res, err := p.db.Queryx("SELECT table_name as name FROM information_schema.tables;")
+	res, err := db.Queryx("SELECT table_name as name FROM information_schema.tables;")
 	if err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func (p *cockroachSchema) Build() error {
 			return err
 		}
 		if table.Name != "cockroach_sequence" {
-			err = p.buildTableData(table)
+			err = p.buildTableData(table, db)
 			if err != nil {
 				return err
 			}
@@ -77,10 +77,10 @@ func (p *cockroachSchema) Build() error {
 	return nil
 }
 
-func (p *cockroachSchema) buildTableData(table *fizz.Table) error {
+func (p *cockroachSchema) buildTableData(table *fizz.Table, db *sqlx.DB) error {
 	prag := fmt.Sprintf("SELECT c.column_name, c.data_type, (c.is_nullable = 'NO') as \"not_null\", c.column_default, (tc.table_schema IS NOT NULL)::bool AS \"pk\" FROM information_schema.columns AS c LEFT JOIN information_schema.key_column_usage as kcu ON ((c.table_schema = kcu.table_schema) AND (c.table_name = kcu.table_name) AND (c.column_name = kcu.column_name)) LEFT JOIN information_schema.table_constraints AS tc ON ((tc.table_schema = kcu.table_schema) AND (tc.table_name = kcu.table_name) AND (tc.constraint_name = kcu.constraint_name)) AND (tc.constraint_name = 'primary') WHERE c.table_name = '%s';", table.Name)
 
-	res, err := p.db.Queryx(prag)
+	res, err := db.Queryx(prag)
 	if err != nil {
 		return nil
 	}
@@ -93,7 +93,7 @@ func (p *cockroachSchema) buildTableData(table *fizz.Table) error {
 		}
 		table.Columns = append(table.Columns, ti.ToColumn())
 	}
-	err = p.buildTableIndexes(table)
+	err = p.buildTableIndexes(table, db)
 	if err != nil {
 		return err
 	}
@@ -101,9 +101,9 @@ func (p *cockroachSchema) buildTableData(table *fizz.Table) error {
 	return nil
 }
 
-func (p *cockroachSchema) buildTableIndexes(t *fizz.Table) error {
+func (p *cockroachSchema) buildTableIndexes(t *fizz.Table, db *sqlx.DB) error {
 	prag := fmt.Sprintf("SELECT distinct index_name as name, non_unique FROM information_schema.statistics where table_name = '%s';", t.Name)
-	res, err := p.db.Queryx(prag)
+	res, err := db.Queryx(prag)
 	if err != nil {
 		return err
 	}
@@ -122,7 +122,7 @@ func (p *cockroachSchema) buildTableIndexes(t *fizz.Table) error {
 		}
 
 		prag = fmt.Sprintf("SELECT column_name as name, direction FROM information_schema.statistics where index_name = '%s';", i.Name)
-		iires, err := p.db.Queryx(prag)
+		iires, err := db.Queryx(prag)
 		if err != nil {
 			return err
 		}

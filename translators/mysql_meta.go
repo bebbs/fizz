@@ -1,6 +1,7 @@
 package translators
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -43,16 +44,17 @@ func (p *mysqlSchema) Version() (string, error) {
 	var version string
 	var err error
 
-	p.db, err = sqlx.Open("mysql", p.URL)
+	db, err := sql.Open("mysql", p.URL)
 	if err != nil {
 		return version, err
 	}
-	defer p.db.Close()
+	defer db.Close()
 
-	res, err := p.db.Queryx("select VERSION()")
+	res, err := db.Query("select VERSION()")
 	if err != nil {
 		return version, err
 	}
+	defer res.Close()
 
 	for res.Next() {
 		err = res.Scan(&version)
@@ -63,13 +65,13 @@ func (p *mysqlSchema) Version() (string, error) {
 
 func (p *mysqlSchema) Build() error {
 	var err error
-	p.db, err = sqlx.Open("mysql", p.URL)
+	db, err := sqlx.Open("mysql", p.URL)
 	if err != nil {
 		return err
 	}
-	defer p.db.Close()
+	defer db.Close()
 
-	res, err := p.db.Queryx(fmt.Sprintf("select TABLE_NAME as name from information_schema.TABLES where TABLE_SCHEMA = '%s'", p.Name))
+	res, err := db.Queryx(fmt.Sprintf("select TABLE_NAME as name from information_schema.TABLES where TABLE_SCHEMA = '%s'", p.Name))
 	if err != nil {
 		return err
 	}
@@ -82,7 +84,7 @@ func (p *mysqlSchema) Build() error {
 		if err != nil {
 			return err
 		}
-		err = p.buildTableData(table)
+		err = p.buildTableData(table, db)
 		if err != nil {
 			return err
 		}
@@ -90,10 +92,10 @@ func (p *mysqlSchema) Build() error {
 	return nil
 }
 
-func (p *mysqlSchema) buildTableData(table *fizz.Table) error {
+func (p *mysqlSchema) buildTableData(table *fizz.Table, db *sqlx.DB) error {
 	prag := fmt.Sprintf("describe %s", table.Name)
 
-	res, err := p.db.Queryx(prag)
+	res, err := db.Queryx(prag)
 	if err != nil {
 		return nil
 	}
