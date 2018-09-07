@@ -15,7 +15,7 @@ var myt = translators.NewMySQL("", "")
 
 func init() {
 	u := "%s:%s@(%s:%s)/%s?parseTime=true&multiStatements=true&readTimeout=1s&collation=%s"
-	u = fmt.Sprintf(u, envy.Get("MYSQL_USER", "root"), envy.Get("MYSQL_PASSWORD", ""), envy.Get("MYSQL_HOST", "127.0.0.1"), envy.Get("MYSQL_PORT", "3306"), "pop_test", "utf8_general_ci")
+	u = fmt.Sprintf(u, envy.Get("MYSQL_USER", "root"), envy.Get("MYSQL_PASSWORD", ""), envy.Get("MYSQL_HOST", "127.0.0.1"), envy.Get("MYSQL_PORT", "3306"), "pop_test", "utf8mb4_general_ci")
 	myt = translators.NewMySQL(u, "pop_test")
 }
 
